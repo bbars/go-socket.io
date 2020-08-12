@@ -105,7 +105,11 @@ func (c *conn) connect() error {
 	}
 	root := newNamespaceConn(c, "/", rootHandler.broadcast)
 	c.namespaces[""] = root
+
+	// join default single-member room:
 	root.Join(root.ID())
+	// join default all-members room:
+	root.Join("*")
 
 	for _, ns := range c.namespaces {
 		ns.SetContext(c.Conn.Context())
