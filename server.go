@@ -174,3 +174,7 @@ func (s *Server) getNamespace(nsp string, create bool) *namespaceHandler {
 		return nil
 	}
 }
+
+func (s *Server) Namespace(nsp string) *namespaceHandler {
+	return s.getNamespace(nsp, true)
+}

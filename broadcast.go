@@ -6,14 +6,17 @@ type EachFunc func(Conn)
 
 // Broadcast is the adaptor to handle broadcasts & rooms for socket.io server API
 type Broadcast interface {
+	FindConn(roomName string, connId string) Conn // Search for Conn in specified room by its ID
 	Join(room string, connection Conn)            // Join causes the connection to join a room
 	Leave(room string, connection Conn)           // Leave causes the connection to leave a room
 	LeaveAll(connection Conn)                     // LeaveAll causes given connection to leave all rooms
 	Clear(room string)                            // Clear causes removal of all connections from the room
 	Send(room, event string, args ...interface{}) // Send will send an event with args to the room
 	SendExcept(exceptConn Conn, room, event string, args ...interface{}) // Send will send an event with args to the room (except specified socket)
+	SendExceptID(exceptConnID string, room, event string, args ...interface{}) // Send sends given event & args to all connections but one (determine by ID) in the specified room
 	SendAll(event string, args ...interface{})    // SendAll will send an event with args to all the rooms
 	SendAllExcept(exceptConn Conn, event string, args ...interface{}) // SendAll will send an event with args to all the rooms (except specified socket)
+	SendAllExceptID(exceptConnID string, event string, args ...interface{}) // SendAll sends given event & args to all the connections but one (determine by ID) to all the rooms
 	ForEach(room string, f EachFunc)
 	Len(room string) int            // Len gives number of connections in the room
 	Rooms(connection Conn) []string // Gives list of all the rooms if no connection given, else list of all the rooms the connection joined
@@ -116,6 +119,18 @@ func (broadcast *broadcast) SendExcept(exceptConn Conn, room, event string, args
 	}
 }
 
+// Send sends given event & args to all connections but one (determine by ID) in the specified room
+func (broadcast *broadcast) SendExceptID(exceptConnID string, room, event string, args ...interface{}) {
+	broadcast.lock.RLock()
+	defer broadcast.lock.RUnlock()
+
+	for connID, connection := range broadcast.rooms[room] {
+		if exceptConnID != connID {
+			connection.Emit(event, args...)
+		}
+	}
+}
+
 // SendAll sends given event & args to all the connections to all the rooms
 func (broadcast *broadcast) SendAll(event string, args ...interface{}) {
 	broadcast.Send("*", event, args...)
@@ -124,6 +139,11 @@ func (broadcast *broadcast) SendAll(event string, args ...interface{}) {
 // SendAll sends given event & args to all the connections but one to all the rooms
 func (broadcast *broadcast) SendAllExcept(exceptConn Conn, event string, args ...interface{}) {
 	broadcast.SendExcept(exceptConn, "*", event, args...)
+}
+
+// SendAll sends given event & args to all the connections but one (determine by ID) to all the rooms
+func (broadcast *broadcast) SendAllExceptID(exceptConnID string, event string, args ...interface{}) {
+	broadcast.SendExceptID(exceptConnID, "*", event, args...)
 }
 
 // SendForEach sends data returned by DataFunc, if the return is 'ok' (second return)
@@ -174,4 +194,19 @@ func (broadcast *broadcast) Rooms(connection Conn) []string {
 		}
 	}
 	return rooms
+}
+
+// Len gives number of connections in the room
+func (broadcast *broadcast) FindConn(roomName string, connId string) Conn {
+	broadcast.lock.RLock()
+	defer broadcast.lock.RUnlock()
+	
+	room, ok := broadcast.rooms[roomName]
+	if !ok {
+		return nil
+	}
+	if conn, ok := room[connId]; ok {
+		return conn
+	}
+	return nil
 }

@@ -40,6 +40,10 @@ func (h *namespaceHandler) OnEvent(event string, f interface{}) {
 	h.events[event] = newEventFunc(f)
 }
 
+func (h *namespaceHandler) Broadcast() Broadcast {
+	return h.broadcast
+}
+
 func (h *namespaceHandler) getTypes(header parser.Header, event string) []reflect.Type {
 	switch header.Type {
 	case parser.Error:
